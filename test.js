@@ -3,16 +3,25 @@ var swift = require( "./swift" );
 var data = [ "bhimsen", "sagar", "santosh", "gourav" ];
 
 var patterns = {
-    "/get/(\\d+)/?" : getNameByIndex
+    "/index/?" : {
+                    "keys" : [],
+                    "callback" : processIndex
+                 },
+    "/get/(\\d+)/?" : {
+                      "keys" : [ "id" ],
+                      "callback" : getNameByIndex
+                    }
 };
 
 swift.run( patterns );
 
 function processIndex(){
+    var html = "<form action='/get/1/' method='get'>";
+    html += "<input type='text' name='id' value='' /><br /><input type='submit' name='submit' value='submit' /></form>";
     return {
-        data : "Welcome to swift framework!!"
+        data : html
     };
 }
-function getNameByIndex( index ){
-    return { "data" : data[ index ] };
+function getNameByIndex(){
+    return { "data" : data[ this.id ] };
 }

@@ -4,16 +4,21 @@ swift = {
     patterns: [],
     route: function( url ){
         var p,
-            m;
+            m, obj = {};
         for( var i = 0, len = this.patterns.length; i < len; i++ ){
             p = this.patterns[ i ];
             m = url.match( p.pattern );
             if( !m )
-                return undefined;
+                continue;
             m = m.slice( 1 );
+            // populate context object which will be set as "this" of callback function.
+            for( var i = 0, len = p.keys.length; i < len; i++ ){
+                obj[ p.keys[ i ] ] = m[ i ];
+            }
             // call the callback and return the response.
-            return p.callback.call( {}, m );
+            return p.callback.call( obj, m );
         }
+        return undefined;
     },
     processPatterns: function( urls ){
         var regex;
@@ -25,11 +30,13 @@ swift = {
                 }
                 else if( url.constructor === String ){
                     regex = new RegExp( url );
+                    // compile the regex for faster execution next time.
                     regex.compile( url );
                     this.patterns.push(
                         {
                             "pattern" : regex,
-                            "callback" : urls[ url ]
+                            "callback" : urls[ url ].callback,
+                            "keys" : urls[ url ].keys
                         }
                     );
                 }
@@ -47,7 +54,10 @@ swift = {
             if( typeof response === 'undefined' )
                 throw Error( "Function must return a response" );
             else{
-                res.writeHead( 200 );
+                res.writeHead( 200, {
+                    "Content-Length" : Buffer.byteLength( response.data ),
+                    "Content-Type" : "text/html; charset=utf-8"
+                } );
                 res.end( response.data );
             }
         });
