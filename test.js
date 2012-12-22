@@ -3,12 +3,12 @@ var swift = require( "./swift" );
 var data = [ "bhimsen", "sagar", "santosh", "gourav" ];
 
 var patterns = {
-    "/index/?" : {
+    "/index\?\\w+" : {
                     "keys" : [],
                     "callback" : processIndex
                  },
     "/get/(\\d+)/?" : {
-                      "keys" : [ "id" ],
+                      "keys" : [ "index" ],
                       "callback" : getNameByIndex
                     }
 };
@@ -16,12 +16,15 @@ var patterns = {
 swift.run( patterns );
 
 function processIndex(){
-    var html = "<form action='/get/1/' method='get'>";
+    var name = this.name,
+        age = this.age;
+    var data = "<h1>" + name + "</h1><h1>" + age + "</h1>";
+    var html = "<form action='/get/1/' method='post'>";
     html += "<input type='text' name='id' value='' /><br /><input type='submit' name='submit' value='submit' /></form>";
     return {
-        data : html
+        data : data + html
     };
 }
 function getNameByIndex(){
-    return { "data" : data[ this.id ] };
+    return { "data" : this.id + " and " + this.index };
 }
