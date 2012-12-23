@@ -1,5 +1,7 @@
 var http = require( "http" ),
-    querystring = require( "./swift_querystring" );
+    querystring = require( "./swift_querystring" ),
+    swift_bodyparser = require( "./swift_bodyparser" ),
+    fs = require( "fs" );
 
 swift = {
     patterns: [],
@@ -68,26 +70,41 @@ swift = {
     },
     processRequest: function( req, callback ){
         var data = '',
-            q;
+            q = {},
+            $this = this;
         // set the encoding of incoming data.
-        req.setEncoding( "utf-8" );
+        //req.setEncoding( "utf-8" );
         req.on( "data", function( chunk ){
+            //console.log( chunk );
             data += chunk;
         });
         // called when data is flushed to the kernel buffer from main memory.
         req.on( "drain", function( chunk ){
         });
-        // called when the readstream ends.[ time to call the callback ]
+        // called when readstream ends.[ time to call the callback ]
         req.on( "end", function(){
+            var type;
             if( req.method == 'GET' ){
                 q = querystring.parse( req.url );
             }
             else if( req.method == 'POST' ){
-                // parse the body to get the querystring.
-                q = querystring.parse( data );
+                type = $this.getType( req );
+                if( type === 'multipart/form-data' )
+                    swift_bodyparser.parse( req, data );
+                else{
+                    // parse the body to get the querystring.
+                    q = querystring.parse( data );
+                }
             }
             callback.call( {}, req, q );
         });
+    },
+    getType: function( req ){
+        var type = '';
+        if( typeof req.headers[ "content-type" ] !== 'undefined' ){
+            type = req.headers[ "content-type" ].split( ";" );
+        }
+        return type[ 0 ];
     }
 };
 module.exports = swift;
