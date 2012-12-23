@@ -1,4 +1,5 @@
-var swift = require( "./swift" );
+var swift = require( "./swift" ),
+    util = require( "util" );
 
 var data = [ "bhimsen", "sagar", "santosh", "gourav" ];
 
@@ -26,5 +27,5 @@ function processIndex(){
     };
 }
 function getNameByIndex(){
-    return { data: " and " + this.index };
+    return { data: util.inspect( this ) };
 }

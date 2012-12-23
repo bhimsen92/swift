@@ -1,4 +1,7 @@
-var util = require( "util" );
+var util = require( "util" ),
+    swift_tmp = require( "./swift_tmp" ),
+    path = require( "path" ),
+    fs = require( "fs" );
 
 var swift_bodyparser = {
     _buffer : new Buffer( 512 ),    
@@ -15,46 +18,81 @@ var swift_bodyparser = {
     },
     parse: function( req, data ){
         var boundary = this.getBoundary( req ),
-            bytes = new Buffer( 1024 * 4 ),
+            bytes = new Buffer( 1024 * 1024 * 4 ),
             count = 0,
-            l,
-            headers = {};
+            forward = 0,
+            l,bytesWritten,
+            headers = {},
+            context = {}, type;
             
         // if boudary exists.
         if( boundary !== '' ){
-            // read until new line is seen.
-            l = this.getLine( data, count );
-            while( l.line.trim() !== '' ){
-                // parsing headers and boundary.
-                // if it is not boundary, then it is a header, parse it.
-                if( l.line[ 0 ] !== '-' ){
-                    this.processHeader( l.line, headers );
+            while( forward < data.length ){
+                // read the top headers.
+                l = this.processTop( data, forward, headers );
+                forward = l.nextByte;
+                // read the body, right now only 4K data can be read.
+                // this if,else block is added to prevent error which was occuring during image upload.
+                //type = headers[ "Content-Type" ];
+                /*if( typeof type !== 'undefined' ){
+                    if( type.indexOf( "image/" ) == -1 ){
+                        bytes = new Buffer( 1024 * 1024 * 4 );
+                        type = "utf-8";
+                    }
+                    else{
+                        bytes = new Buffer( 1024 * 1024 * 4, 'base64' );
+                        type = "base64";
+                    }
+                }*/
+                for( var i = l.nextByte, len = data.length; i < len; i++ ){
+                    if( data[ i ] == '\r' && data[ i + 1 ] == '\n' ){
+                        // point pass the '\r\n' bytes.
+                        forward += ( count + 2 );
+                        break;
+                    }
+                    else{
+                        bytes.write( data[ i ], count, Buffer.byteLength( data[ i ] ) );
+                        count++;
+                    }
                 }
-                l = this.getLine( data, l.nextByte );
+                // populate context.
+                if( typeof headers[ "Content-Type" ] !== 'undefined' ){
+                    context[ headers[ "Content-Disposition" ][ "name" ] ] = headers[ "Content-Disposition" ][ "filename" ];
+                    context[ "type" ] = headers[ "Content-Type" ];
+                    // write data to file.
+                    var tmp = swift_tmp.mktmp( path.extname( headers[ "Content-Disposition" ][ "filename" ] ) );
+                    context[ "path" ] = tmp.path;
+                    bytesWritten = fs.writeSync( tmp.fd, bytes, 0, count, null );
+                    if( bytesWritten > 0 )
+                        console.log( "Everything is OK!!" );
+                    else
+                        console.log( "We are dooooomed....!!" );
+                }
+                else if( typeof headers[ "Content-Disposition" ] !== 'undefined' ){
+                    // value is in the body of the message.
+                    context[ headers[ "Content-Disposition" ][ "name" ] ] = bytes.slice( 0, count ).toString( 'utf-8' );
+                }
+                // reinitialize the variables.
+                headers = {};
+                count = 0;
             }
-            // read the body, right now only 4K data can be read.
-            for( var i = l.nextByte, len = data.length; i < len; i++ ){
-                if( data[ i ] == '\r' && data[ i + 1 ] == '\n' ){
-                    console.log( bytes.slice( 0, count ).toString( 'utf-8' ) );
-                    count = 0;
-                    break;
-                }
-                else{
-                    bytes.write( data[ i ], count );
-                    count++;
-                }
-            }
-            console.log( "Body read!!" );
-            //console.log( util.inspect( headers ) );
         }
+        // return the context object.
+        return context;
     },
     getLine: function( data, pos ){
         var count = 0;
         for( var i = pos, len = data.length; i < len; i++ ){
-            if( data[ i ] == '\r' && data[ i + 1 ] == '\n' ){
+            if( ( data[ i ] == '\r' && data[ i + 1 ] == '\n' ) ){
                 return {
                     line : this._buffer.slice( 0, count ).toString( 'utf-8' ),
                     nextByte: i + 2
+                };
+            }
+            else if( ( data[ i ] == '\r' || data[ i + 1 ] == '\n' ) ){
+                return {
+                    line : this._buffer.slice( 0, count ).toString( 'utf-8' ),
+                    nextByte: i + 1
                 };
             }
             else{
@@ -74,11 +112,16 @@ var swift_bodyparser = {
             t = {},
             p;
         // split on  ':'
-        line = line.split( ":" );
-        // get the main key.
-        key = line[ 0 ];
-        // split on ';' and extract key, value pairs if present.
-        vals = line[ 1 ].split( ";" );
+        // if, nested ifs are added to prevent errors which was occuring while uploading image data.
+        if( line !== '' ){
+            line = line.split( ":" );
+            // get the main key.
+            if( typeof line[ 0 ] !== 'undefined' )
+                key = line[ 0 ];
+            // split on ';' and extract key, value pairs if present.
+            if( typeof line[ 1 ] !== 'undefined' )
+                vals = line[ 1 ].split( ";" );
+        }
         if( vals.length == 1 ){
             // first element itself is the value.
             t = vals[ 0 ].trim();
@@ -98,6 +141,20 @@ var swift_bodyparser = {
             }
         }
         headers[ key ] = t;
+    },
+    processTop: function( data, count, headers ){
+        var l = {};
+        // read until new line is seen.
+        l = this.getLine( data, count );
+        while( l.line.trim() !== '' ){
+            // parsing headers and boundary.
+            // if it is not boundary, then it is a header, parse it.
+            if( l.line[ 0 ] !== '-' ){
+                this.processHeader( l.line, headers );
+            }
+            l = this.getLine( data, l.nextByte );
+        }
+        return l;
     }
 };
 module.exports = swift_bodyparser;

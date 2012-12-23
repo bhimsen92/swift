@@ -73,7 +73,6 @@ swift = {
             q = {},
             $this = this;
         // set the encoding of incoming data.
-        //req.setEncoding( "utf-8" );
         req.on( "data", function( chunk ){
             //console.log( chunk );
             data += chunk;
@@ -89,8 +88,9 @@ swift = {
             }
             else if( req.method == 'POST' ){
                 type = $this.getType( req );
-                if( type === 'multipart/form-data' )
-                    swift_bodyparser.parse( req, data );
+                if( type === 'multipart/form-data' ){
+                    q = swift_bodyparser.parse( req, data );
+                }
                 else{
                     // parse the body to get the querystring.
                     q = querystring.parse( data );
