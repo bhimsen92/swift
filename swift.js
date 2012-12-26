@@ -1,10 +1,12 @@
 var http = require( "http" ),
     querystring = require( "./swift_querystring" ),
-    swift_bodyparser = require( "./swift_bodyparser" ),
-    fs = require( "fs" );
+    fs = require( "fs" ),
+    util = require( "util" ),
+    SwiftParser = require( "./swift_parser" );
 
 swift = {
     patterns: [],
+    parser: undefined,
     route: function( url, context ){
         var p,
             m, obj = context;
@@ -69,16 +71,12 @@ swift = {
         this.server.listen( process.env.PORT || 8080, process.env.IP || '0.0.0.0' );
     },
     processRequest: function( req, callback ){
-        var data = '',
-            q = {},
-            $this = this;
+        var q = {},
+            $this = this, count = 0, data = '';
         // set the encoding of incoming data.
+        this.parser = new SwiftParser( req );
         req.on( "data", function( chunk ){
-            //console.log( chunk );
-            data += chunk;
-        });
-        // called when data is flushed to the kernel buffer from main memory.
-        req.on( "drain", function( chunk ){
+            $this.parser.parse( chunk );
         });
         // called when readstream ends.[ time to call the callback ]
         req.on( "end", function(){
@@ -89,7 +87,8 @@ swift = {
             else if( req.method == 'POST' ){
                 type = $this.getType( req );
                 if( type === 'multipart/form-data' ){
-                    q = swift_bodyparser.parse( req, data );
+                    q = $this.parser.getContext();
+                    //console.log( util.inspect( q ) );
                 }
                 else{
                     // parse the body to get the querystring.

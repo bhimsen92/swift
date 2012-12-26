@@ -18,7 +18,7 @@ var swift_bodyparser = {
     },
     parse: function( req, data ){
         var boundary = this.getBoundary( req ),
-            bytes = new Buffer( 1024 * 1024 * 4 ),
+            bytes, //= new Buffer( 1024 * 1024 * 4 ),
             count = 0,
             forward = 0,
             l,bytesWritten,
@@ -33,8 +33,8 @@ var swift_bodyparser = {
                 forward = l.nextByte;
                 // read the body, right now only 4K data can be read.
                 // this if,else block is added to prevent error which was occuring during image upload.
-                //type = headers[ "Content-Type" ];
-                /*if( typeof type !== 'undefined' ){
+                type = headers[ "Content-Type" ];
+                if( typeof type !== 'undefined' ){
                     if( type.indexOf( "image/" ) == -1 ){
                         bytes = new Buffer( 1024 * 1024 * 4 );
                         type = "utf-8";
@@ -43,7 +43,7 @@ var swift_bodyparser = {
                         bytes = new Buffer( 1024 * 1024 * 4, 'base64' );
                         type = "base64";
                     }
-                }*/
+                }
                 for( var i = l.nextByte, len = data.length; i < len; i++ ){
                     if( data[ i ] == '\r' && data[ i + 1 ] == '\n' ){
                         // point pass the '\r\n' bytes.
@@ -51,7 +51,7 @@ var swift_bodyparser = {
                         break;
                     }
                     else{
-                        bytes.write( data[ i ], count, Buffer.byteLength( data[ i ] ) );
+                        bytes.write( data[ i ], count, Buffer.byteLength( data[ i ] ), type );
                         count++;
                     }
                 }
@@ -62,11 +62,11 @@ var swift_bodyparser = {
                     // write data to file.
                     var tmp = swift_tmp.mktmp( path.extname( headers[ "Content-Disposition" ][ "filename" ] ) );
                     context[ "path" ] = tmp.path;
-                    bytesWritten = fs.writeSync( tmp.fd, bytes, 0, count, null );
-                    if( bytesWritten > 0 )
+                    bytesWritten = fs.writeFileSync( tmp.path, bytes, type );
+                    if( bytesWritten )
                         console.log( "Everything is OK!!" );
                     else
-                        console.log( "We are dooooomed....!!" );
+                        console.log( "We are dooooomed....!!: " );
                 }
                 else if( typeof headers[ "Content-Disposition" ] !== 'undefined' ){
                     // value is in the body of the message.
