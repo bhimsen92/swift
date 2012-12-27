@@ -75,8 +75,9 @@ swift = {
             $this = this, count = 0, data = '';
         // set the encoding of incoming data.
         this.parser = new SwiftParser( req );
-        req.on( "data", function( chunk ){
-            $this.parser.parse( chunk );
+        req.on( "data", function( chunk ){                    
+            if( $this.parser.parse( chunk ) != chunk.length )
+                throw Error( "Parse error" );
         });
         // called when readstream ends.[ time to call the callback ]
         req.on( "end", function(){
@@ -88,7 +89,6 @@ swift = {
                 type = $this.getType( req );
                 if( type === 'multipart/form-data' ){
                     q = $this.parser.getContext();
-                    //console.log( util.inspect( q ) );
                 }
                 else{
                     // parse the body to get the querystring.
