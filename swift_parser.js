@@ -46,7 +46,6 @@ SwiftParser.prototype.parse = function( buffer ){
     var bidx = 0,
         len = buffer.length,
         tchar;
-    console.log( this.tidx );
     while( bidx < len ){
         switch( this.current_state ){
             case State.HEADER:
@@ -109,9 +108,7 @@ SwiftParser.prototype.parse = function( buffer ){
                                             this._tbuffer[ this.tidx++ ] = buffer[ bidx ];
                                         }
                                         else{
-                                            if( buffer[ bidx ] != SpecialChar.CR && buffer[ bidx ] != SpecialChar.HYPHEN )
-                                                this._tbuffer[ this.tidx++ ] = buffer[ bidx ];
-                                            bidx -= this.processBoundaryCheck();
+                                            this.processBoundaryCheck( buffer[ bidx ] );
                                         }
                                       }
                                       this.prev_state = State.BOUNDARY;
@@ -122,8 +119,7 @@ SwiftParser.prototype.parse = function( buffer ){
     }
     return bidx;
 }
-SwiftParser.prototype.processBoundaryCheck = function(){
-    var rval = 0;
+SwiftParser.prototype.processBoundaryCheck = function( tchar ){
     if( this.tidx == this.boundary.length ){
         // i completely seen the body, process it, reinitialize the vars.
         this.processBody();
@@ -132,6 +128,7 @@ SwiftParser.prototype.processBoundaryCheck = function(){
         this.current_state = State.CR;
     }
     else{
+        this._tbuffer[ this.tidx++ ] = tchar;
         // put CR,LF into write buffer.
         this.body[ this.body_index++ ] = SpecialChar.CR;
         this.body[ this.body_index++ ] = SpecialChar.LF;
@@ -140,18 +137,15 @@ SwiftParser.prototype.processBoundaryCheck = function(){
         }
         this.body_index = i;
         this.current_state = State.BODY;
-        rval = 1;
     }
     this.tidx = 0;
     // to move the buffer pointer one step back.[ to unread the current character ]
-    return rval;
 }
 
 SwiftParser.prototype.processBody = function(){
     if( this.body_index > 0 ){
         var buf = this.body.slice( 0, this.body_index ),
             obj = {}, f = '';
-        //console.log( buf.toString( 'utf-8', 0 ) );
         if( typeof this.headers[ "content-type" ] !== 'undefined' ){
             if( typeof this.headers.value !== 'undefined' )
                 f = this.headers.value;
