@@ -139,7 +139,6 @@ SwiftParser.prototype.processBoundaryCheck = function( tchar ){
         this.current_state = State.BODY;
     }
     this.tidx = 0;
-    // to move the buffer pointer one step back.[ to unread the current character ]
 }
 
 SwiftParser.prototype.processBody = function(){

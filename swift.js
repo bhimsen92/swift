@@ -2,11 +2,14 @@ var http = require( "http" ),
     querystring = require( "./swift_querystring" ),
     fs = require( "fs" ),
     util = require( "util" ),
-    SwiftParser = require( "./swift_parser" );
+    SwiftParser = require( "./swift_parser" ),
+    Sessions = require( "./swift_sessions" );
 
 swift = {
     patterns: [],
     parser: undefined,
+    config: undefined,
+    swift_sessions: undefined,
     route: function( url, context ){
         var p,
             m, obj = context;
@@ -48,18 +51,24 @@ swift = {
             }
         }
     },
-    run: function( urls ){
+    run: function( config ){
         var $this = this;
-        // process urls,
-        this.processPatterns( urls );
+        this.config = config;
+        // process urls,   
+        this.processPatterns( config.patterns );
         // create server.
         this.server = http.createServer( function( req, res ){
             // get the callback function.
             var q = $this.processRequest( req, function( req, context ){
+                // load the session if exists.
+                var tobj = new Sessions( Sessions.getSecret( req ) );
+                context.sessions = tobj.load();
                 var response = $this.route( req.url, context );
                 if( typeof response === 'undefined' )
                     throw Error( "Function must return a response" );
                 else{
+                    // save the sessions string to the database.
+                    tobj.save( context.sessions );
                     res.writeHead( 200, {
                         "Content-Length" : Buffer.byteLength( response.data ),
                         "Content-Type" : "text/html; charset=utf-8"
@@ -72,10 +81,10 @@ swift = {
     },
     processRequest: function( req, callback ){
         var q = {},
-            $this = this, count = 0, data = '';
+            $this = this, count = 0;
         // set the encoding of incoming data.
         this.parser = new SwiftParser( req );
-        req.on( "data", function( chunk ){                    
+        req.on( "data", function( chunk ){
             if( $this.parser.parse( chunk ) != chunk.length )
                 throw Error( "Parse error" );
         });
@@ -104,6 +113,9 @@ swift = {
             type = req.headers[ "content-type" ].split( ";" );
         }
         return type[ 0 ];
+    },
+    install: function( config ){
+        Sessions.install( config );
     }
 };
 module.exports = swift;
