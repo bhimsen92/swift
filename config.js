@@ -12,6 +12,9 @@ function processIndex(){
     };
 }
 function getNameByIndex(){
+    if( typeof this.sessions[ "count" ] === 'undefined' )
+        this.sessions[ "count" ] = 0;
+    this.sessions[ "count" ]++;
     return { data: util.inspect( this ) };
 }
 

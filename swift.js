@@ -3,7 +3,9 @@ var http = require( "http" ),
     fs = require( "fs" ),
     util = require( "util" ),
     SwiftParser = require( "./swift_parser" ),
-    Sessions = require( "./swift_sessions" );
+    swift_sessions = require( "./swift_sessions" ),
+    swift_cookies = require( "./swift_cookies" ),
+    Value = require( "./swift_value" );
 
 swift = {
     patterns: [],
@@ -54,25 +56,46 @@ swift = {
     run: function( config ){
         var $this = this;
         this.config = config;
-        // process urls,   
+        // process urls,
         this.processPatterns( config.patterns );
         // create server.
         this.server = http.createServer( function( req, res ){
             // get the callback function.
-            var q = $this.processRequest( req, function( req, context ){
-                // load the session if exists.
-                var tobj = new Sessions( Sessions.getSecret( req ) );
-                context.sessions = tobj.load();
+            $this.processRequest( req, function( req, context ){
+                var rheader = {},
+                    tval = undefined;
+                // load the cookies
+                context.cookies = swift_cookies.parse( req );
+                context.sessions = {};
+                
+                if( typeof context.cookies[ "SWIFTSESSIONID" ] !== 'undefined' ){
+                    tval = context.cookies[ "SWIFTSESSIONID" ].value;
+                    context.sessions = swift_sessions.load( $this.config, tval );
+                }
+                
                 var response = $this.route( req.url, context );
-                if( typeof response === 'undefined' )
-                    throw Error( "Function must return a response" );
+                if( typeof response === 'undefined' ){
+                    res.writeHead( 404 );
+                    res.end();
+                    //throw Error( "Function must return a response" );
+                }
                 else{
+                
                     // save the sessions string to the database.
-                    tobj.save( context.sessions );
-                    res.writeHead( 200, {
-                        "Content-Length" : Buffer.byteLength( response.data ),
-                        "Content-Type" : "text/html; charset=utf-8"
-                    } );
+                    var rsess = swift_sessions.save( $this.config, context.sessions, tval );
+                    if( typeof context.cookies[ "SWIFTSESSIONID" ] == 'undefined' && typeof rsess.value !== 'undefined' ){
+                        context.cookies[ "SWIFTSESSIONID" ] = new Value( { value: rsess.value,
+                                                                             domain: req.headers[ "Host" ] } );
+                    }
+
+                    var cookie_string = swift_cookies.getCookieString( context.cookies );
+                    if( typeof cookie_string != 'undefined' ){
+                        rheader[ "Set-Cookie" ] = cookie_string;
+                    }
+                    
+                    rheader[ "Content-Length" ] = Buffer.byteLength( response.data );
+                    rheader[ "Content-Type" ] = "text/html; charset=utf-8";
+                    res.writeHead( 200, rheader );
                     res.end( response.data );
                 }
             });

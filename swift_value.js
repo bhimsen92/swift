@@ -1,11 +1,11 @@
 function Value( obj ){
     this.value = obj.value || '';
-    this.expires = obj.expires || new Date( new Date().setDate( 0 ) ).toLocaleFormat();
+    this.expires = obj.expires || undefined;//new Date( new Date().setDate( 0 ) ).toGMTString();
     this.max_age = obj.max_age || undefined;
     this.domain = obj.domain;
     this.path = obj.path || "/";
-    this.secure = obj.secure || false;
-    this.http_only = obj.http_only || false;
+    this.secure = obj.secure || undefined;
+    this.http_only = obj.http_only || undefined;
 }
 Value.prototype.serialize = function( key ){
     var rval = "";
@@ -13,18 +13,21 @@ Value.prototype.serialize = function( key ){
     rval = key + "=" + this.value;
     for( prop in this ){
         if( prop !== 'value' && Object.prototype.hasOwnProperty.call( this, prop ) ){
-            rval += "; " + this.getSaneKeyName( prop ) + "=" + this[ prop ];
+            if( ( prop != 'secure' && prop != 'http_only' ) && typeof this[ prop ] !== 'undefined' ){
+                rval += "; " + this.getSaneKeyName( prop ) + "=" + this[ prop ];
+            }
         }
     }
+    rval += ";";
     return rval;
 }
 Value.prototype.getSaneKeyName = function( prop ){
     var rval = '';
     switch( prop ){
-        case 'expires': rval = "Expires"; break;
-        case 'max_age': rval = "Max-Age"; break;
-        case 'domain':  rval = "Domain"; break;
-        case 'path': rval = "Path"; break;
+        case 'expires': rval = "expires"; break;
+        case 'max_age': rval = "max-Age"; break;
+        case 'domain':  rval = "domain"; break;
+        case 'path': rval = "path"; break;
         case 'secure' : rval = "Secure"; break;
         case 'http_only': rval = "HttpOnly";  break;
     }

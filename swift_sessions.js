@@ -1,5 +1,6 @@
 var db = require( "mysql" ),
     crypto = require( "crypto" );
+Sessions = {};
 
 Sessions.load = function( config, session_id ){
     var rval = {};
@@ -16,11 +17,12 @@ Sessions.load = function( config, session_id ){
                 conn.end();
                 throw err;
             }
+            console.log( rows );
             if( rows.length == 1 ){
                 rval = JSON.parse( rows[ 0 ].session_string );
                 rval.__destroy = false;
             }
-            else{
+            else if( rows.length > 1 ){
                 conn.end();
                 throw Error( "Multiple rows with same session id: " + session_id );
             }
@@ -31,20 +33,38 @@ Sessions.load = function( config, session_id ){
 }
 Sessions.save = function( config, sessions, session_id ){
     var rval = false,
-        sql = '';
+        sql = '',
+        id = session_id;
     if( typeof session_id !== 'undefined' ){
         // session exists, update the row.
-        var string = JSON.stringify( sessions );
-        sql = "update __swift__session set session_string = '" + string + "' where session_id = '" + session_id + "'";
+        var string = JSON.stringify( sessions );        
+        sql = "update __swift__session set session_string = '" + string + "' where id = '" + session_id + "'";
     }
     else if( Object.keys( sessions ).length > 0 ){
         var string = JSON.stringify( sessions ),
             id = crypto.createHash( 'md5' ).update( Date.now() + string, 'utf-8' ).digest( 'hex' );
         sql = "insert into __swift__session ( id, session_string ) values ( '" + id + "', '" + string + "' )";
     }
-    conn = db.createConnection({
-        // stop here. :)
-    });
+    if( sql != '' ){
+        conn = db.createConnection({
+            host: config.host,
+            user: config.user,
+            password: config.password,
+            database: config.database
+        });
+        conn.connect();
+        conn.query( sql, function( err, rows, fields ){
+            if( err ){
+                conn.end();
+                throw err;
+            }
+            conn.end();
+        });
+    }
+    return {
+        "id" : "SWIFTSESSIONID",
+        "value" : id
+    };    
 }
 Sessions.install = function( config ){
     var table = "create table __swift__session(";
