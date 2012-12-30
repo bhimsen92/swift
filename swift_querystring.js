@@ -1,3 +1,4 @@
+var Context = require( "./swift_context" );
 swift_querystring = {
     parse: function( url ){
         /* querystring is everything after ? in url.
@@ -6,7 +7,7 @@ swift_querystring = {
         */
         //  extract querystring from the url.
         var querystring = url.substring( url.lastIndexOf( "?" ) + 1 ),
-            rval = {},
+            rval = new Context(),
             p;
         // replace all '+' symbols by space because the uri is encoded by the browser.
         querystring = querystring.replace( /\+/g, ' ' );

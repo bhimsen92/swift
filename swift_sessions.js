@@ -1,8 +1,10 @@
 var db = require( "mysql" ),
-    crypto = require( "crypto" );
+    crypto = require( "crypto" ),
+    Value = require( "./swift_value" );
+    
 Sessions = {};
 
-Sessions.load = function( config, session_id ){
+Sessions.load = function( config, session_id, context ){
     var rval = {};
     if( typeof session_id !== 'undefined' ){
         var conn = db.createConnection({
@@ -17,7 +19,6 @@ Sessions.load = function( config, session_id ){
                 conn.end();
                 throw err;
             }
-            console.log( rows );
             if( rows.length == 1 ){
                 rval = JSON.parse( rows[ 0 ].session_string );
                 rval.__destroy = false;
@@ -27,11 +28,17 @@ Sessions.load = function( config, session_id ){
                 throw Error( "Multiple rows with same session id: " + session_id );
             }
             conn.end();
+            context.sessions = rval;
+            context.emit( "session_loaded" );
         });
     }
-    return rval;
+    else{
+        context.sessions = {};
+        context.emit( "session_loaded" );
+    }
 }
-Sessions.save = function( config, sessions, session_id ){
+
+Sessions.save = function( config, sessions, session_id, context, _data, _headers ){
     var rval = false,
         sql = '',
         id = session_id;
@@ -57,15 +64,19 @@ Sessions.save = function( config, sessions, session_id ){
             if( err ){
                 conn.end();
                 throw err;
-            }
+            }            
             conn.end();
+            context.cookies[ "SWIFTSESSIONID" ] = new Value( { value: id,
+                                                               domain: context._request.headers[ "Host" ] } );
+            context.emit( "session_saved", _data, _headers );
         });
     }
-    return {
-        "id" : "SWIFTSESSIONID",
-        "value" : id
-    };    
+    else{
+        // no need to set the session cookie, send session_saved event.
+        context.emit( "session_saved", _data, _headers );
+    }
 }
+
 Sessions.install = function( config ){
     var table = "create table __swift__session(";
         table += "id varchar( 64 ) not null,";

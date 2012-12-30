@@ -5,7 +5,7 @@ var http = require( "http" ),
     SwiftParser = require( "./swift_parser" ),
     swift_sessions = require( "./swift_sessions" ),
     swift_cookies = require( "./swift_cookies" ),
-    Value = require( "./swift_value" );
+    Context = require( "./swift_context" );
 
 swift = {
     patterns: [],
@@ -28,7 +28,10 @@ swift = {
             // call the callback and return the response.
             return p.callback.call( obj, m );
         }
-        return undefined;
+        // if no patterns are matched, send 404 to the client.        
+        context._response.writeHead( 404 );
+        context._response.end();
+        return;
     },
     processPatterns: function( urls ){
         var regex;
@@ -62,48 +65,46 @@ swift = {
         this.server = http.createServer( function( req, res ){
             // get the callback function.
             $this.processRequest( req, function( req, context ){
-                var rheader = {},
-                    tval = undefined;
+                var tval = undefined;
                 // load the cookies
                 context.cookies = swift_cookies.parse( req );
                 context.sessions = {};
+                context._request = req;
+                // 'res' from closure.
+                context._response = res;
                 
                 if( typeof context.cookies[ "SWIFTSESSIONID" ] !== 'undefined' ){
                     tval = context.cookies[ "SWIFTSESSIONID" ].value;
-                    context.sessions = swift_sessions.load( $this.config, tval );
                 }
                 
-                var response = $this.route( req.url, context );
-                if( typeof response === 'undefined' ){
-                    res.writeHead( 404 );
-                    res.end();
-                    //throw Error( "Function must return a response" );
-                }
-                else{
+                context.on( "send_data", function( _data, _headers ){
+                    swift_sessions.save( $this.config, this.sessions, tval, this, _data, _headers );
+                });
                 
-                    // save the sessions string to the database.
-                    var rsess = swift_sessions.save( $this.config, context.sessions, tval );
-                    if( typeof context.cookies[ "SWIFTSESSIONID" ] == 'undefined' && typeof rsess.value !== 'undefined' ){
-                        context.cookies[ "SWIFTSESSIONID" ] = new Value( { value: rsess.value,
-                                                                             domain: req.headers[ "Host" ] } );
-                    }
-
-                    var cookie_string = swift_cookies.getCookieString( context.cookies );
+                context.on( "session_loaded", function(){
+                    // once the session is loaded, route the request to a function.
+                    $this.route( this._request.url, this );
+                });
+                context.on( "session_saved", function( _data, _headers ){
+                    var cookie_string = swift_cookies.getCookieString( this.cookies ),
+                        rheader = {};
                     if( typeof cookie_string != 'undefined' ){
                         rheader[ "Set-Cookie" ] = cookie_string;
                     }
                     
-                    rheader[ "Content-Length" ] = Buffer.byteLength( response.data );
+                    rheader[ "Content-Length" ] = Buffer.byteLength( _data );
                     rheader[ "Content-Type" ] = "text/html; charset=utf-8";
-                    res.writeHead( 200, rheader );
-                    res.end( response.data );
-                }
+                    this._response.writeHead( 200, rheader );
+                    this._response.end( _data );
+                });
+                // load the sessions.
+                swift_sessions.load( $this.config, tval, context );                
             });
         });
         this.server.listen( process.env.PORT || 8080, process.env.IP || '0.0.0.0' );
     },
     processRequest: function( req, callback ){
-        var q = {},
+        var q = new Context(),
             $this = this, count = 0;
         // set the encoding of incoming data.
         this.parser = new SwiftParser( req );

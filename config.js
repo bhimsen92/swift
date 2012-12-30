@@ -7,15 +7,13 @@ function processIndex(){
     var data = "<h1>" + name + "</h1><h1>" + age + "</h1>";
     var html = "<form action='/get/1/' method='post' enctype='multipart/form-data'>";
     html += "<input type='file' name='second' value='' /><br /><input type='submit' name='submit' value='submit' /></form>";
-    return {
-        data : data + html
-    };
+    this.send( data + html );
 }
 function getNameByIndex(){
     if( typeof this.sessions[ "count" ] === 'undefined' )
         this.sessions[ "count" ] = 0;
     this.sessions[ "count" ]++;
-    return { data: util.inspect( this ) };
+    this.send( util.inspect( this ) );
 }
 
 var config = {

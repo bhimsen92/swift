@@ -1,7 +1,8 @@
 var util = require( "util" ),
     fs = require( "fs" ),
     swift_tmp = require( "./swift_tmp" ),
-    path = require( "path" );
+    path = require( "path" ),
+    Context = require( "./swift_context" );
 
 var State = {
     BOUNDARY: 1,
@@ -35,7 +36,7 @@ function SwiftParser( req ){
     this.body = new Buffer( 1024 * 1024 * 4 );
     this.current_state = State.BOUNDARY;
     this.prev_state = undefined;
-    this.context = {};
+    this.context = new Context();
     this.context.files = [];
     this.headers = {};
     
