@@ -1,4 +1,4 @@
 swift
 =====
 
-A simple web framework for node.js
+A simple web framework for node.js[abandoned]
